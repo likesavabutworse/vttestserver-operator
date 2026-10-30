@@ -1,0 +1,29 @@
+# Step 3: a disposable server that restores the latest snapshot, then applies its own VSchema.
+apiVersion: vttestserver-operator.io/v1alpha1
+kind: VTTestServer
+metadata:
+  name: pr-env
+  namespace: vttest-dev
+spec:
+  image: vitess/vttestserver:mysql84
+  keyspaces:
+    - {name: commerce, shards: 1}
+    - {name: customer, shards: 2}
+  storage: {type: ephemeral}
+  resources:
+    requests: {cpu: 250m, memory: 1Gi}
+    limits: {memory: 2Gi}
+  vschema:
+    configMapRef: {name: commerce-vschema}
+  initSQL:
+    - {keyspace: commerce, configMapKeyRef: {name: commerce-init-sql, key: 10-commerce.sql}}
+    - {keyspace: customer, configMapKeyRef: {name: commerce-init-sql, key: 20-customer.sql}}
+  restoreFrom:
+    tag: latest
+    s3:
+      bucket: vttest-snapshots
+      prefix: dev
+      region: us-east-1
+      endpoint: http://silo.silo.svc:9000
+      forcePathStyle: true
+      credentialsSecretRef: {name: s3-credentials}

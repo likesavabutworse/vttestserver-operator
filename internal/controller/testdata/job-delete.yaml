@@ -1,0 +1,50 @@
+metadata:
+  labels:
+    vttestserver-operator.io/snapshot: golden-1
+  name: golden-1-delete
+  namespace: ns
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        vttestserver-operator.io/snapshot: golden-1
+    spec:
+      containers:
+      - args:
+        - delete
+        - --name
+        - golden-1
+        - --bucket
+        - bkt
+        - --prefix
+        - pre
+        - --endpoint
+        - http://silo:9000
+        - --force-path-style
+        command:
+        - /datactl
+        image: datactl:test
+        name: datactl
+        resources:
+          limits:
+            memory: 256Mi
+          requests:
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        terminationMessagePolicy: FallbackToLogsOnError
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 999
+        runAsGroup: 999
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: snapshots
+status: {}

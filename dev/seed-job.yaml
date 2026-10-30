@@ -1,0 +1,31 @@
+# Step 1b: put rows into the golden source through vtgate. Any MySQL client can do this.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: golden-seed
+  namespace: vttest-dev
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext: {runAsNonRoot: true, runAsUser: 999, runAsGroup: 999, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: mysql
+          image: vitess/vttestserver:mysql84
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              M="mysql -h golden-source.vttest-dev.svc -P 15003 -u root --batch --skip-column-names"
+              # Schema tracking needs a few seconds after the DDL of the operator.
+              sleep 15
+              $M -e "insert ignore into commerce.product(sku, description, price) values ('sku-1','pen',100),('sku-2','ink',250),('sku-3','pad',400)"
+              n=$($M -e "select count(*) from customer.customer")
+              if [ "$n" = "0" ]; then
+                $M -e "insert into customer.customer(email) values ('a@example.test'),('b@example.test'),('c@example.test'),('d@example.test'),('e@example.test')"
+                $M -e "insert into customer.corder(customer_id, sku, price) values (1000,'sku-1',100),(1001,'sku-2',250),(1002,'sku-3',400),(1003,'sku-1',100),(1004,'sku-2',250)"
+              fi
+              $M -e "select 'customers', count(*) from customer.customer union all select 'orders', count(*) from customer.corder union all select 'products', count(*) from commerce.product"
+              $M -e "select 'next customer_seq', next_id from commerce.customer_seq"

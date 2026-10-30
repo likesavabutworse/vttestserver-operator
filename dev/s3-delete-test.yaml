@@ -1,0 +1,80 @@
+# Delete and TTL test against Silo. Trigger snap-keep, snap-delete and snap-ttl, run s3-list,
+# disable snap-delete (deletes the object, so the finalizer runs), wait 30 s for the TTL, run s3-list again.
+apiVersion: vttestserver-operator.io/v1alpha1
+kind: VTTestServerSnapshot
+metadata:
+  name: snap-keep
+  namespace: vttest-dev
+spec:
+  serverRef: {name: golden-source}
+  tags: [keep]
+  deletionPolicy: Retain
+  s3:
+    bucket: vttest-snapshots
+    prefix: dev
+    region: us-east-1
+    endpoint: http://silo.silo.svc:9000
+    forcePathStyle: true
+    credentialsSecretRef: {name: s3-credentials}
+---
+apiVersion: vttestserver-operator.io/v1alpha1
+kind: VTTestServerSnapshot
+metadata:
+  name: snap-delete
+  namespace: vttest-dev
+spec:
+  serverRef: {name: golden-source}
+  tags: [del]
+  deletionPolicy: Delete
+  s3:
+    bucket: vttest-snapshots
+    prefix: dev
+    region: us-east-1
+    endpoint: http://silo.silo.svc:9000
+    forcePathStyle: true
+    credentialsSecretRef: {name: s3-credentials}
+---
+apiVersion: vttestserver-operator.io/v1alpha1
+kind: VTTestServerSnapshot
+metadata:
+  name: snap-ttl
+  namespace: vttest-dev
+spec:
+  serverRef: {name: golden-source}
+  tags: [ttl]
+  deletionPolicy: Retain
+  ttl: 30s
+  s3:
+    bucket: vttest-snapshots
+    prefix: dev
+    region: us-east-1
+    endpoint: http://silo.silo.svc:9000
+    forcePathStyle: true
+    credentialsSecretRef: {name: s3-credentials}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: s3-list
+  namespace: vttest-dev
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext: {runAsNonRoot: true, runAsUser: 999, runAsGroup: 999, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: mc
+          image: pgsty/mc:RELEASE.2026-10-18T00-00-00Z
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          command: ["/bin/sh", "-c"]
+          envFrom:
+            - secretRef: {name: s3-credentials}
+          args:
+            - |
+              set -eu
+              MC="/usr/bin/mc --insecure --config-dir /tmp/mc"
+              $MC alias set silo http://silo.silo.svc:9000 "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY" >/dev/null
+              echo "--- objects in the bucket"
+              $MC ls --recursive silo/vttest-snapshots/dev/ || true
+              echo "--- end"

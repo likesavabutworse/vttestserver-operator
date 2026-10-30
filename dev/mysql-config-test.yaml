@@ -1,0 +1,39 @@
+# Check that spec.mysqlConfig reaches mysqld on a fresh server. The verify Job reads the value through vtgate.
+apiVersion: vttestserver-operator.io/v1alpha1
+kind: VTTestServer
+metadata:
+  name: cfg-fresh
+  namespace: vttest-dev
+spec:
+  image: vitess/vttestserver:mysql84
+  keyspaces:
+    - {name: commerce, shards: 1}
+  storage: {type: ephemeral}
+  resources:
+    requests: {cpu: 100m, memory: 512Mi}
+    limits: {memory: 1Gi}
+  mysqlConfig:
+    max_connections: "77"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cfg-fresh-verify
+  namespace: vttest-dev
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext: {runAsNonRoot: true, runAsUser: 999, runAsGroup: 999, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: mysql
+          image: vitess/vttestserver:mysql84
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              got=$(mysql -h cfg-fresh.vttest-dev.svc -P 15003 -u root --batch --skip-column-names -e "show variables like 'max_connections'" | awk '{print $2}')
+              echo "max_connections: $got (want 77)"
+              [ "$got" = "77" ]

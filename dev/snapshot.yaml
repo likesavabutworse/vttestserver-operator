@@ -1,0 +1,18 @@
+# Step 2: snapshot the golden source into Silo. The operator stops the server for the copy and starts it again.
+apiVersion: vttestserver-operator.io/v1alpha1
+kind: VTTestServerSnapshot
+metadata:
+  name: golden-1
+  namespace: vttest-dev
+spec:
+  serverRef: {name: golden-source}
+  tags: [latest]
+  # Retain: with Delete, "tilt down" can wait on the finalizer after the operator is gone.
+  deletionPolicy: Retain
+  s3:
+    bucket: vttest-snapshots
+    prefix: dev
+    region: us-east-1
+    endpoint: http://silo.silo.svc:9000
+    forcePathStyle: true
+    credentialsSecretRef: {name: s3-credentials}

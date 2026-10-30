@@ -1,0 +1,29 @@
+# Step 4: check the restored data of pr-env, then check that the sequences continue after the restore.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pr-env-verify
+  namespace: vttest-dev
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext: {runAsNonRoot: true, runAsUser: 999, runAsGroup: 999, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: mysql
+          image: vitess/vttestserver:mysql84
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              M="mysql -h pr-env.vttest-dev.svc -P 15003 -u root --batch --skip-column-names"
+              sleep 15
+              check() { got=$($M -e "$2"); echo "$1: $got (want $3)"; [ "$got" = "$3" ]; }
+              check customers "select count(*) from customer.customer" 5
+              check orders "select count(*) from customer.corder" 5
+              check products "select count(*) from commerce.product" 3
+              $M -e "insert into customer.customer(email) values ('f@example.test')"
+              check "new customer id is past the seeded ids" "select count(*) from customer.customer where customer_id >= 1005" 1
+              echo "restore verified"

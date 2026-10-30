@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vttest-dev
+  labels:
+    # Proves that the pods of the operator and the dev Jobs pass the restricted profile.
+    pod-security.kubernetes.io/enforce: restricted

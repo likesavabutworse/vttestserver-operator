@@ -1,0 +1,205 @@
+metadata:
+  labels:
+    app.kubernetes.io/instance: shop
+    app.kubernetes.io/managed-by: vttestserver-operator
+    app.kubernetes.io/name: vttestserver
+    vttestserver-operator.io/server: shop
+  name: shop
+  namespace: ns
+spec:
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Delete
+    whenScaled: Retain
+  replicas: 1
+  selector:
+    matchLabels:
+      vttestserver-operator.io/server: shop
+  serviceName: shop
+  template:
+    metadata:
+      annotations:
+        vttestserver-operator.io/mysql-config-hash: 3691fa50aa9bec4a
+      labels:
+        app.kubernetes.io/instance: shop
+        app.kubernetes.io/managed-by: vttestserver-operator
+        app.kubernetes.io/name: vttestserver
+        vttestserver-operator.io/server: shop
+    spec:
+      containers:
+      - args:
+        - --port
+        - "15000"
+        - --keyspaces
+        - commerce,customer
+        - --num-shards
+        - 1,10
+        - --mysql-bind-host
+        - 0.0.0.0
+        - --vtcombo-bind-host
+        - 0.0.0.0
+        - --mysql-server-version
+        - 8.4.6-Vitess
+        - --charset
+        - utf8mb4
+        - --foreign-key-mode
+        - allow
+        - --enable-online-ddl=true
+        - --enable-direct-ddl=true
+        - --planner-version
+        - gen4
+        - --tablet-refresh-interval
+        - 10s
+        - --persistent-mode
+        - --data-dir=/vt/vtdataroot
+        - --vschema-ddl-authorized-users=%
+        - --extra-my-cnf=/etc/vttest/mysql/extra.cnf
+        - --no-scatter
+        command:
+        - /vt/bin/vttestserver
+        image: vitess/vttestserver:mysql84
+        name: vttestserver
+        ports:
+        - containerPort: 15001
+          name: grpc
+        - containerPort: 15003
+          name: mysql
+        readinessProbe:
+          failureThreshold: 3
+          periodSeconds: 5
+          tcpSocket:
+            port: 15003
+        resources:
+          limits:
+            memory: 1536Mi
+          requests:
+            memory: 768Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 120
+          periodSeconds: 5
+          tcpSocket:
+            port: 15003
+        volumeMounts:
+        - mountPath: /vt/vtdataroot
+          name: data
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /etc/vttest/mysql
+          name: mycnf
+          readOnly: true
+      initContainers:
+      - args:
+        - restore
+        - --data-dir
+        - /vt/vtdataroot
+        - --bucket
+        - bkt
+        - --prefix
+        - pre
+        - --region
+        - us-east-1
+        - --endpoint
+        - http://silo:9000
+        - --force-path-style
+        - --tag
+        - latest
+        - --pin-file
+        - /etc/vttest/restore-pin/name
+        - --keyspace
+        - commerce:1
+        - --keyspace
+        - customer:10
+        command:
+        - /datactl
+        envFrom:
+        - secretRef:
+            name: creds
+        image: datactl:test
+        name: restore
+        resources:
+          limits:
+            memory: 256Mi
+          requests:
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+        - mountPath: /vt/vtdataroot
+          name: data
+        - mountPath: /etc/vttest/restore-pin
+          name: restore-pin
+          readOnly: true
+      - args:
+        - apply-my-cnf
+        - --data-dir
+        - /vt/vtdataroot
+        - --file
+        - /etc/vttest/mysql/extra.cnf
+        command:
+        - /datactl
+        image: datactl:test
+        name: apply-my-cnf
+        resources:
+          limits:
+            memory: 256Mi
+          requests:
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /vt/vtdataroot
+          name: data
+        - mountPath: /etc/vttest/mysql
+          name: mycnf
+          readOnly: true
+      securityContext:
+        fsGroup: 999
+        runAsGroup: 999
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: snapshots
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - configMap:
+          name: shop-mycnf
+        name: mycnf
+      - configMap:
+          name: shop-restore-pin
+          optional: true
+        name: restore-pin
+  updateStrategy: {}
+  volumeClaimTemplates:
+  - metadata:
+      labels:
+        app.kubernetes.io/instance: shop
+        app.kubernetes.io/managed-by: vttestserver-operator
+        app.kubernetes.io/name: vttestserver
+        vttestserver-operator.io/server: shop
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 8Gi
+    status: {}
+status:
+  availableReplicas: 0
+  replicas: 0

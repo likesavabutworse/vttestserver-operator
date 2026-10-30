@@ -1,0 +1,126 @@
+# Silo (a MinIO fork) is the S3 compatible store for snapshots in the dev setup. It has no published
+# chart, so this one file has everything: namespace, credentials, volume, server, services and a Job
+# that creates the bucket. The root credentials are for local development only.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: silo
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: silo
+  namespace: silo
+type: Opaque
+stringData:
+  rootUser: tilt-silo-key
+  rootPassword: vttest-secret-key
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: silo
+  namespace: silo
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: silo
+  namespace: silo
+  labels: {app: silo}
+spec:
+  replicas: 1
+  # One replica owns the volume: stop the old pod before the new one starts.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: {app: silo}
+  template:
+    metadata:
+      labels: {app: silo}
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: silo
+          image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
+          command: ["/bin/sh", "-ce"]
+          args:
+            - /usr/bin/docker-entrypoint.sh silo server /export --address :9000 --console-address :9001
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom: {secretKeyRef: {name: silo, key: rootUser}}
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom: {secretKeyRef: {name: silo, key: rootPassword}}
+          ports:
+            - {name: http, containerPort: 9000}
+            - {name: http-console, containerPort: 9001}
+          readinessProbe:
+            httpGet: {path: /minio/health/ready, port: http}
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: 256Mi
+          volumeMounts:
+            - {name: export, mountPath: /export}
+      volumes:
+        - name: export
+          persistentVolumeClaim: {claimName: silo}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: silo
+  namespace: silo
+spec:
+  selector: {app: silo}
+  ports:
+    - {name: http, port: 9000, targetPort: http}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: silo-console
+  namespace: silo
+spec:
+  selector: {app: silo}
+  ports:
+    - {name: http-console, port: 9001, targetPort: http-console}
+---
+# Creates the bucket. It is safe to run again: --ignore-existing.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: silo-post-job
+  namespace: silo
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: mc
+          image: pgsty/mc:RELEASE.2026-10-18T00-00-00Z
+          command: ["/bin/sh", "-c"]
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom: {secretKeyRef: {name: silo, key: rootUser}}
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom: {secretKeyRef: {name: silo, key: rootPassword}}
+          args:
+            - |
+              set -eu
+              MC="/usr/bin/mc --insecure --config-dir /tmp/mc"
+              $MC alias set silo http://silo.silo.svc:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+              $MC mb --ignore-existing silo/vttest-snapshots

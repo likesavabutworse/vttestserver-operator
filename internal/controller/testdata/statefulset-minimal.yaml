@@ -1,0 +1,103 @@
+metadata:
+  labels:
+    app.kubernetes.io/instance: shop
+    app.kubernetes.io/managed-by: vttestserver-operator
+    app.kubernetes.io/name: vttestserver
+    vttestserver-operator.io/server: shop
+  name: shop
+  namespace: ns
+spec:
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Delete
+    whenScaled: Retain
+  replicas: 1
+  selector:
+    matchLabels:
+      vttestserver-operator.io/server: shop
+  serviceName: shop
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: shop
+        app.kubernetes.io/managed-by: vttestserver-operator
+        app.kubernetes.io/name: vttestserver
+        vttestserver-operator.io/server: shop
+    spec:
+      containers:
+      - args:
+        - --port
+        - "15000"
+        - --keyspaces
+        - commerce
+        - --num-shards
+        - "1"
+        - --mysql-bind-host
+        - 0.0.0.0
+        - --vtcombo-bind-host
+        - 0.0.0.0
+        - --mysql-server-version
+        - 8.4.6-Vitess
+        - --charset
+        - utf8mb4
+        - --foreign-key-mode
+        - allow
+        - --enable-online-ddl=true
+        - --enable-direct-ddl=true
+        - --planner-version
+        - gen4
+        - --tablet-refresh-interval
+        - 10s
+        - --persistent-mode
+        - --data-dir=/vt/vtdataroot
+        command:
+        - /vt/bin/vttestserver
+        image: vitess/vttestserver:mysql84
+        name: vttestserver
+        ports:
+        - containerPort: 15001
+          name: grpc
+        - containerPort: 15003
+          name: mysql
+        readinessProbe:
+          failureThreshold: 3
+          periodSeconds: 5
+          tcpSocket:
+            port: 15003
+        resources:
+          limits:
+            memory: 1536Mi
+          requests:
+            ephemeral-storage: 2Gi
+            memory: 768Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 120
+          periodSeconds: 5
+          tcpSocket:
+            port: 15003
+        volumeMounts:
+        - mountPath: /vt/vtdataroot
+          name: data
+        - mountPath: /tmp
+          name: tmp
+      securityContext:
+        fsGroup: 999
+        runAsGroup: 999
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: data
+  updateStrategy: {}
+status:
+  availableReplicas: 0
+  replicas: 0

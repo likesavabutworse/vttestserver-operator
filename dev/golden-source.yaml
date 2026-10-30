@@ -1,0 +1,20 @@
+# Step 1 of the golden data workflow: a long-lived server that you seed with data.
+apiVersion: vttestserver-operator.io/v1alpha1
+kind: VTTestServer
+metadata:
+  name: golden-source
+  namespace: vttest-dev
+spec:
+  image: vitess/vttestserver:mysql84
+  keyspaces:
+    - {name: commerce, shards: 1}
+    - {name: customer, shards: 2}
+  storage: {type: persistent, size: 2Gi}
+  resources:
+    requests: {cpu: 250m, memory: 1Gi}
+    limits: {memory: 2Gi}
+  vschema:
+    configMapRef: {name: commerce-vschema}
+  initSQL:
+    - {keyspace: commerce, configMapKeyRef: {name: commerce-init-sql, key: 10-commerce.sql}}
+    - {keyspace: customer, configMapKeyRef: {name: commerce-init-sql, key: 20-customer.sql}}
