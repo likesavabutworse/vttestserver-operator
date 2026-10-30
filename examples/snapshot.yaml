@@ -1,0 +1,50 @@
+# Take a snapshot of a running server and store it in S3. The snapshot needs a persistent volume.
+#   kubectl apply -n <namespace> -f examples/snapshot.yaml
+# The operator stops the server, uploads the data directory with a Job, and starts the server again.
+# Later, a new server can start from the snapshot (see restore.yaml).
+#
+# Access to S3 is for each object. Use ONE of these in the s3 block:
+# - serviceAccountName on the snapshot (IRSA or Pod Identity), or
+# - credentialsSecretRef, as below.
+# The operator never reads the Secret. The Job pod gets it through envFrom.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: s3-credentials
+stringData:
+  AWS_ACCESS_KEY_ID: replace-me
+  AWS_SECRET_ACCESS_KEY: replace-me
+---
+apiVersion: vttestserver-operator.io/v1alpha1
+kind: VTTestServer
+metadata:
+  name: golden-source
+spec:
+  image: vitess/vttestserver:mysql84
+  keyspaces:
+    - {name: commerce, shards: 1}
+  storage:
+    type: persistent
+    # Use 3 to 4 times the size of the data.
+    size: 8Gi
+---
+apiVersion: vttestserver-operator.io/v1alpha1
+kind: VTTestServerSnapshot
+metadata:
+  name: golden-1
+spec:
+  serverRef: {name: golden-source}
+  # A tag is a name that points to this snapshot. Restores can use the tag "latest".
+  tags: [latest]
+  # Retain keeps the S3 objects when you delete this object. Delete removes them.
+  deletionPolicy: Retain
+  # Optional: delete the S3 objects after this time.
+  # ttl: 168h
+  s3:
+    bucket: my-snapshots
+    prefix: dev
+    region: us-east-1
+    # endpoint and forcePathStyle are for S3 compatible storage such as MinIO.
+    # endpoint: http://minio.minio.svc:9000
+    # forcePathStyle: true
+    credentialsSecretRef: {name: s3-credentials}

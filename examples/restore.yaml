@@ -1,0 +1,20 @@
+# A server that starts from a snapshot. The keyspaces must match the snapshot: the same names and the same
+# number of shards, or the restore is refused.
+# Use "tag" to restore the snapshot that a tag points to. Use "name" to restore one snapshot by its name.
+# With a tag, the operator remembers the snapshot name, so a server that lost its volume restores the
+# same snapshot and not a newer one.
+apiVersion: vttestserver-operator.io/v1alpha1
+kind: VTTestServer
+metadata:
+  name: pr-env
+spec:
+  image: vitess/vttestserver:mysql84
+  keyspaces:
+    - {name: commerce, shards: 1}
+  restoreFrom:
+    tag: latest
+    s3:
+      bucket: my-snapshots
+      prefix: dev
+      region: us-east-1
+      credentialsSecretRef: {name: s3-credentials}

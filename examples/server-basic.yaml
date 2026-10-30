@@ -1,0 +1,12 @@
+# The smallest server: one unsharded keyspace on an ephemeral volume. The data is gone when the pod restarts.
+#   kubectl apply -n <namespace> -f examples/server-basic.yaml
+#   kubectl get vttestserver -n <namespace> -w
+# When the phase is Ready, connect to <name>.<namespace>.svc:15003 with any MySQL client. Any user and password work.
+apiVersion: vttestserver-operator.io/v1alpha1
+kind: VTTestServer
+metadata:
+  name: basic
+spec:
+  image: vitess/vttestserver:mysql84
+  keyspaces:
+    - {name: commerce, shards: 1}
