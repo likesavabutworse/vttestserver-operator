@@ -140,13 +140,9 @@ tilt up         # builds the images, installs the chart, and starts a small S3 s
 ```
 
 In the Tilt UI, trigger the manual resources in this order: `golden-source`, `golden-seed`, `golden-snapshot`,
-`pr-env`, `pr-env-verify` — this runs the workflow above against a real cluster. `tilt ci` runs the same
-workflow non-interactively (it auto-triggers under `GITHUB_ACTIONS=true`; see the `ci` flag near the top of
-the [Tiltfile](Tiltfile)).
+`pr-env`, `pr-env-verify` to run the workflow above against a real cluster. `tilt ci` runs the same
+workflow non-interactively.
 
-Pushing a tag matching `v*` runs [.github/workflows/release.yaml](.github/workflows/release.yaml), which
-builds and publishes the images and the Helm chart used above. To build your own images for a private
-registry instead, see [AGENTS.md](AGENTS.md#releasing).
 
 ## Guides
 
