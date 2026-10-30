@@ -1,0 +1,269 @@
+{{- if .Values.crd.enabled }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    {{- if .Values.crd.keep }}
+    "helm.sh/resource-policy": keep
+    {{- end }}
+    controller-gen.kubebuilder.io/version: v0.22.0
+  name: vttestserversnapshots.vttestserver-operator.io
+spec:
+  group: vttestserver-operator.io
+  names:
+    kind: VTTestServerSnapshot
+    listKind: VTTestServerSnapshotList
+    plural: vttestserversnapshots
+    singular: vttestserversnapshot
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.serverRef.name
+      name: Server
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.sizeBytes
+      name: Size
+      type: integer
+    - jsonPath: .status.completedAt
+      name: Completed
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: VTTestServerSnapshot is a request for one snapshot of a VTTestServer,
+          with its status.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of VTTestServerSnapshot
+            properties:
+              consistency:
+                default: clean
+                description: 'consistency is clean: the server stops before the copy.'
+                enum:
+                - clean
+                type: string
+              deletionPolicy:
+                default: Retain
+                description: deletionPolicy says what happens to the S3 objects when
+                  this object is deleted.
+                enum:
+                - Retain
+                - Delete
+                type: string
+              s3:
+                description: s3 is the snapshot store.
+                properties:
+                  bucket:
+                    description: bucket is the bucket name.
+                    minLength: 1
+                    type: string
+                  credentialsSecretRef:
+                    description: |-
+                      credentialsSecretRef names a Secret with AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and
+                      optional AWS_SESSION_TOKEN. Leave it empty to use IRSA or Pod Identity through serviceAccountName.
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  endpoint:
+                    description: endpoint is the URL of S3 compatible storage, for
+                      example in-cluster Silo or MinIO.
+                    type: string
+                  forcePathStyle:
+                    description: forcePathStyle turns on path style addressing, which
+                      most S3 compatible storage needs.
+                    type: boolean
+                  prefix:
+                    description: prefix is the key prefix inside the bucket.
+                    type: string
+                  region:
+                    description: region is the AWS region.
+                    type: string
+                required:
+                - bucket
+                type: object
+              serverRef:
+                description: serverRef is the server to snapshot.
+                properties:
+                  name:
+                    description: name is the VTTestServer name. The server needs persistent
+                      storage.
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                type: object
+              serviceAccountName:
+                description: serviceAccountName is used by the snapshot Job. IRSA
+                  or Pod Identity needs it.
+                type: string
+              tags:
+                description: tags are pointers to this snapshot, for example latest.
+                items:
+                  type: string
+                type: array
+              ttl:
+                description: ttl is how long the snapshot lives. After that, a Job
+                  deletes the S3 objects.
+                type: string
+            required:
+            - s3
+            - serverRef
+            type: object
+            x-kubernetes-validations:
+            - message: spec is immutable
+              rule: self == oldSelf
+          status:
+            description: status defines the observed state of VTTestServerSnapshot
+            properties:
+              completedAt:
+                description: completedAt is when the upload finished.
+                format: date-time
+                type: string
+              conditions:
+                description: conditions represent the current state of the snapshot.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              fingerprint:
+                description: fingerprint is the topology of the source server.
+                properties:
+                  keyspaces:
+                    items:
+                      description: KeyspaceSpec is one keyspace of the server.
+                      properties:
+                        name:
+                          description: name is the keyspace name.
+                          maxLength: 63
+                          pattern: ^[a-zA-Z][a-zA-Z0-9_]*$
+                          type: string
+                        shards:
+                          default: 1
+                          description: shards is the shard count. It is the vttestserver
+                            --num-shards flag, not part of the VSchema.
+                          format: int32
+                          maximum: 256
+                          minimum: 1
+                          type: integer
+                      required:
+                      - name
+                      - shards
+                      type: object
+                    type: array
+                type: object
+              jobName:
+                description: jobName is the Job that uploads or deletes the snapshot.
+                type: string
+              message:
+                description: message has the error text of a failure.
+                type: string
+              phase:
+                description: phase is the lifecycle phase.
+                type: string
+              phaseStartedAt:
+                description: phaseStartedAt is when the phase began. The deadlines
+                  of Quiescing and Uploading count from it.
+                format: date-time
+                type: string
+              s3Uri:
+                description: s3Uri is where the snapshot lives.
+                type: string
+              sha256:
+                description: sha256 is the digest of the archive.
+                type: string
+              sizeBytes:
+                description: sizeBytes is the size of the archive in the store.
+                format: int64
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+{{- end }}
