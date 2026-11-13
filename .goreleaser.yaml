@@ -2,6 +2,9 @@ version: 2
 
 project_name: datactl
 
+# "dist" is the Helm chart (dist/chart), so GoReleaser must not clean or write there.
+dist: .goreleaser-dist
+
 builds:
   - id: datactl
     main: ./cmd/datactl
