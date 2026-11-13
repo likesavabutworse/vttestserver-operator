@@ -3,7 +3,6 @@
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 [![Tests](https://github.com/likesavabutworse/vttestserver-operator/actions/workflows/test.yml/badge.svg)](https://github.com/likesavabutworse/vttestserver-operator/actions/workflows/test.yml)
 [![Lint](https://github.com/likesavabutworse/vttestserver-operator/actions/workflows/lint.yml/badge.svg)](https://github.com/likesavabutworse/vttestserver-operator/actions/workflows/lint.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/likesavabutworse/vttestserver-operator)](https://goreportcard.com/report/github.com/likesavabutworse/vttestserver-operator)
 
 `vttestserver-operator` manages ephemeral Vitess [`vttestserver`](https://vitess.io/docs/) instances on
 Kubernetes. It is meant for CI pipelines and PR/preview environments, where tests need a real Vitess
@@ -46,6 +45,7 @@ images instead of the published ones.
 ### Create your first instance
 
 ```sh
+kubectl create namespace my-namespace
 kubectl apply -n my-namespace -f examples/server-basic.yaml
 kubectl get vttestserver -n my-namespace -w
 ```
@@ -58,17 +58,21 @@ kubectl get vttestserver basic -n my-namespace -o jsonpath='{.status.mysql}{"\n"
 mysql -h basic.my-namespace.svc -P 15003 -u test
 ```
 
+The MySQL and vtctld Services are `ClusterIP`: reachable from inside the cluster (that hostname), not from
+outside it. Connect from another pod, or `kubectl port-forward` the Service for a local client.
+
 ## Custom resources
 
 ### `VTTestServer`
 
-A `VTTestServer` is one Vitess instance. The fields that matter day to day:
+A `VTTestServer` is one Vitess instance. Key fields:
 
 - `image` -- the `vttestserver` image to run. See https://vitess.io/docs/23.0/get-started/vttestserver-docker-image/
 - `keyspaces` -- name and shard count for each keyspace.
 - `vschema` / `initSQL` -- a ConfigMap reference for the VSchema, and one or more ConfigMap keys of SQL that
   run once the instance is up. A keyspace with more than one shard needs a VSchema with `"sharded": true`.
-- `storage` -- `ephemeral` (default; data is lost on pod restart) or `persistent` with a size.
+- `storage` -- `ephemeral` (default; data is lost on pod restart) or `persistent` with a size. A persistent
+  volume is deleted along with the instance; snapshot first if you want to keep the data.
 - `restoreFrom` -- restore from a `VTTestServerSnapshot`, by `tag` (the newest snapshot under that tag) or by
   `name` (one specific snapshot). The restored keyspaces must match the snapshot's.
 
@@ -80,14 +84,14 @@ init SQL.
 
 A `VTTestServerSnapshot` captures the data of one `VTTestServer` and stores it in S3, so other instances can
 restore from it later. Taking a snapshot briefly stops the source instance, archives its data directory, and
-starts it again; `tags` let a restoring `VTTestServer` ask for "the latest snapshot named X" instead of a
-specific snapshot name. `deletionPolicy` and `ttl` control whether and when the S3 objects are cleaned up.
+starts it again -- plan for that interruption if the source instance is in active use. `tags` let a
+restoring `VTTestServer` ask for "the latest snapshot named X" instead of a specific snapshot name.
+`deletionPolicy` and `ttl` control whether and when the S3 objects are cleaned up.
 See [examples/snapshot.yaml](examples/snapshot.yaml).
 
 ## Typical workflow
 
-The snapshot/restore round trip is the main thing this operator is for -- seeding a dataset once and reusing
-it across many short-lived environments:
+To reuse a dataset across CI runs or preview environments:
 
 1. **Create a source instance.** Apply [server-basic.yaml](examples/server-basic.yaml) or
    [server-sharded.yaml](examples/server-sharded.yaml) and wait for `Ready`.
