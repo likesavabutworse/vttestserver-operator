@@ -3,6 +3,7 @@
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 [![Tests](https://github.com/likesavabutworse/vttestserver-operator/actions/workflows/test.yml/badge.svg)](https://github.com/likesavabutworse/vttestserver-operator/actions/workflows/test.yml)
 [![Lint](https://github.com/likesavabutworse/vttestserver-operator/actions/workflows/lint.yml/badge.svg)](https://github.com/likesavabutworse/vttestserver-operator/actions/workflows/lint.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/likesavabutworse/vttestserver-operator)](https://goreportcard.com/report/github.com/likesavabutworse/vttestserver-operator)
 
 `vttestserver-operator` manages ephemeral Vitess [`vttestserver`](https://vitess.io/docs/) instances on
 Kubernetes. It is meant for CI pipelines and PR/preview environments, where tests need a real Vitess
@@ -104,6 +105,21 @@ it across many short-lived environments:
 | `VTTestServerSnapshot` | A Job that stops the instance, uploads its data directory, and starts it again. |
 
 For reconciliation internals, `datactl`, and leader election, see [AGENTS.md](AGENTS.md).
+
+### Install `datactl`
+
+The operator runs `datactl` itself, in init containers and Jobs. You only need your own copy to snapshot or
+restore a local `vttestserver` data directory (e.g. a Docker volume) without a cluster:
+
+```sh
+# linux on amd64; use datactl_linux_arm64, datactl_darwin_arm64 or datactl_darwin_amd64 elsewhere
+curl -fsSL -o /usr/local/bin/datactl \
+  https://github.com/likesavabutworse/vttestserver-operator/releases/latest/download/datactl_linux_amd64
+chmod +x /usr/local/bin/datactl
+datactl --help
+```
+
+Each release also publishes a `checksums.txt` to verify the download against.
 
 ## Configuration
 

@@ -1,0 +1,30 @@
+version: 2
+
+project_name: datactl
+
+builds:
+  - id: datactl
+    main: ./cmd/datactl
+    binary: datactl
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+
+archives:
+  - ids: [datactl]
+    formats: [binary]
+    name_template: "datactl_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+# The manager and datactl container images are built and signed by the
+# manager-image/datactl-image jobs in release.yaml, not by GoReleaser.
+
+changelog:
+  use: github-native

@@ -31,10 +31,12 @@ Served on the metrics port of the chart, next to the standard controller-runtime
 ## Releasing
 
 Pushing a tag matching `v*` runs `.github/workflows/release.yaml`: it builds and pushes the `manager` and
-`datactl` images (multi-arch, `linux/amd64`/`linux/arm64`) and the Helm chart to `ghcr.io`, with the chart and
-image tags all derived from the git tag. `dist/chart/values.yaml` defaults `manager.image.repository` and
+`datactl` images (multi-arch, `linux/amd64`/`linux/arm64`) and the Helm chart to `ghcr.io`, and publishes
+standalone `datactl` binaries (`linux`/`darwin`, `amd64`/`arm64`) to a GitHub release, with everything's
+version derived from the git tag. `dist/chart/values.yaml` defaults `manager.image.repository` and
 `datactl.image.repository` to the published `ghcr.io` paths, so the published chart installs with no `--set`
-overrides.
+overrides. The `binaries` job (GoReleaser, config in `.goreleaser.yaml`) only runs on an actual tag push, not
+on a manual `workflow_dispatch`, since it needs a tag ref to derive the version from.
 
 Each image gets an SPDX SBOM and SLSA provenance attestation (`sbom: true`/`provenance: true` on
 `docker/build-push-action`), and is signed keyless with `cosign`, using the workflow's own GitHub OIDC
